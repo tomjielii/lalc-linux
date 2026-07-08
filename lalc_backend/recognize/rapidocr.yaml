@@ -16,6 +16,8 @@ Global:
     font_path: null
     log_level: "warning" # debug / info / warning / error / critical
 
+    model_root_dir: null
+
 EngineConfig:
     onnxruntime:
         intra_op_num_threads: -1

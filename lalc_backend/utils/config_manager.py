@@ -239,6 +239,54 @@ def init_config_manager(config_dir: str = "config"):
     return _config_manager_instance
 
 
+def _ensure_default_configs(cm):
+    """如果配置为空，填入默认值确保流水线能启动"""
+    if not cm.exp_cfg:
+        cm.exp_cfg = {
+            "check_node_name": "exp_check",
+            "luxcavation_mode": "skip battle",
+            "exp_stage": "08",
+            "check_node_target_count": 0,
+            "team_indexes": [6],
+            "team_orders": [["Yi Sang", "Faust", "Don Quixote", "Ryoshu",
+                             "Meursault", "Hong Lu", "Heathcliff", "Ishmael",
+                             "Rodion", "Sinclair", "Outis", "Gregor"]],
+        }
+    if not cm.thread_cfg:
+        cm.thread_cfg = {
+            "check_node_name": "thread_check",
+            "luxcavation_mode": "skip battle",
+            "thread_stage": "50",
+            "check_node_target_count": 0,
+            "team_indexes": [3],
+            "team_orders": [["Yi Sang", "Faust", "Gregor", "Don Quixote",
+                             "Ishmael", "Rodion", "Ryoshu", "Meursault",
+                             "Hong Lu", "Heathcliff", "Sinclair", "Outis"]],
+        }
+    if not cm.mirror_cfg:
+        cm.mirror_cfg = {}
+    cm.mirror_cfg.setdefault("check_node_name", "mirror_check")
+    cm.mirror_cfg.setdefault("check_node_target_count", 99)
+    cm.mirror_cfg.setdefault("team_indexes", [1])
+    cm.mirror_cfg.setdefault("mirror_shop_heal", [False])
+    cm.mirror_cfg.setdefault("team_orders", [["Heathcliff", "Outis", "Rodion", "Ryoshu",
+                                               "Don Quixote", "Yi Sang"]])
+    cm.mirror_cfg.setdefault("mirror_team_styles", [["Bleed"]])
+    cm.mirror_cfg.setdefault("mirror_team_ego_gift_styles", [["Bleed", "Poise"]])
+    cm.mirror_cfg.setdefault("mirror_team_ego_allow_list", [[]])
+    cm.mirror_cfg.setdefault("mirror_team_ego_block_list", [[]])
+    cm.mirror_cfg.setdefault("mirror_team_stars", [["0", "3", "6", "7"]])
+    cm.mirror_cfg.setdefault("mirror_replace_skill", [{}])
+    cm.mirror_cfg.setdefault("mirror_stop_purchase_gift_money", 600)
+    cm.mirror_cfg.setdefault("mirror_team_initial_ego_orders", [[2, 1, 3]])
+    cm.mirror_cfg.setdefault("accept_reward", True)
+    if not cm.other_task_cfg:
+        cm.other_task_cfg = {}
+    cm.other_task_cfg.setdefault("test_mode", True)
+    cm.other_task_cfg.setdefault("ego_enable", False)
+    cm.other_task_cfg.setdefault("lunary_purchase_target", 0)
+
+
 def initialize_configs():
     """
     初始化配置管理器并加载所有配置
@@ -247,6 +295,7 @@ def initialize_configs():
     if _config_manager_instance is None:
         _config_manager_instance = ConfigManager()
     _config_manager_instance.load_configs()
+    _ensure_default_configs(_config_manager_instance)
     _config_manager_instance.initialize_theme_pack_config()
     return _config_manager_instance
 

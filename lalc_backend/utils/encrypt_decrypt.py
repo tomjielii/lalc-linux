@@ -5,18 +5,23 @@ import subprocess
 import uuid
 import os
 
-# 导入win32crypt模块用于Windows数据保护API
+# 导入win32crypt模块用于Windows数据保护API（仅Windows可用）
 try:
     import win32crypt
+    _has_win32crypt = True
 except ImportError:
-    raise Exception("警告: 未找到pywin32库，请运行'pip install pywin32'安装。")
+    _has_win32crypt = False
 from utils.logger import init_logger
 
 logger = init_logger()
 
 
 def encrypt_cdk(text: str) -> str:
-    """使用当前Windows用户凭据加密CDK字符串"""
+    """使用当前Windows用户凭据加密CDK字符串（仅Windows）"""
+    if not _has_win32crypt:
+        logger.warning("encrypt_cdk 仅在 Windows 下可用（缺少 win32crypt），跳过加密")
+        return text
+
     entropy = b"LALC"  
     
     if not text:
@@ -44,7 +49,11 @@ def encrypt_cdk(text: str) -> str:
 
 
 def decrypt_cdk(encrypted_b64: str) -> str:
-    """使用当前Windows用户凭据解密CDK字符串"""
+    """使用当前Windows用户凭据解密CDK字符串（仅Windows）"""
+    if not _has_win32crypt:
+        logger.warning("decrypt_cdk 仅在 Windows 下可用（缺少 win32crypt），跳过解密")
+        return encrypted_b64
+
     entropy = b"LALC" 
     
     if not encrypted_b64:

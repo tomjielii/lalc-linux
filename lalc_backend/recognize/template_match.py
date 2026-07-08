@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import time
+import matplotlib
+matplotlib.use("Agg")  # 非交互后端，避免 GTK 崩溃
 import matplotlib.pyplot as plt
 from PIL import Image
 import os

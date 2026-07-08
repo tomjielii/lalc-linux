@@ -116,53 +116,50 @@ class LALCLogger:
 
     def compress_image_with_pngquant(self, image_path: str | Path) -> bool:
         """
-        使用pngquant.exe压缩图片
+        使用 pngquant 压缩图片。
+        Windows 下用 pngquant.exe，Linux 下用系统安装的 pngquant。
         
         :param image_path: 图片路径
         :return: 压缩是否成功
         """
         try:
-            # 确保路径是Path对象
             image_path = Path(image_path)
-            
-            # 检查pngquant.exe是否存在
-            pngquant_exe = Path(__file__).parent / "pngquant.exe"
-            if not pngquant_exe.exists():
-                self.warning(f"pngquant.exe未找到: {pngquant_exe}")
-                return False
-                
-            # 检查图片文件是否存在
             if not image_path.exists():
                 self.warning(f"图片文件不存在: {image_path}")
                 return False
 
-            # 构建命令，按照要求使用特定参数进行快速压缩
-            # ./pngquant.exe --force --skip-if-larger --ext .png --speed 11 图片名字.png
+            # Windows 用 pngquant.exe，Linux 用系统 pngquant
+            if sys.platform.startswith("win"):
+                pngquant_bin = str(Path(__file__).parent / "pngquant.exe")
+            else:
+                pngquant_bin = "pngquant"
+
+            # pngquant --force --ext .png --speed 11 图片.png
             cmd = [
-                str(pngquant_exe),
+                pngquant_bin,
                 "--force",
-                # "--skip-if-larger",
                 "--ext", ".png",
                 "--speed", "11",
-                str(image_path.resolve())
+                str(image_path.resolve()),
             ]
-            
-            # 执行命令
+
             result = subprocess.run(
                 cmd,
-                cwd=pngquant_exe.parent,
                 capture_output=True,
                 text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0,
             )
-            
+
             if result.returncode == 0:
                 self.debug(f"图片压缩成功: {image_path}")
                 return True
             else:
                 self.warning(f"图片压缩失败: {image_path}, 错误: {result.stderr.strip()}")
                 return False
-                
+
+        except FileNotFoundError:
+            self.warning(f"pngquant 未安装，请运行: sudo pacman -S pngquant")
+            return False
         except Exception as e:
             self.error(f"图片压缩发生异常: {e}")
             return False

@@ -12,16 +12,21 @@ def pil_to_cv2(pil_image, grayscale=False):
     """
     # 转换PIL图像为numpy数组
     img_np = np.array(pil_image)
-    
+    channels = img_np.shape[2] if len(img_np.shape) == 3 else 0
+
     if grayscale:
-        # 转换为灰度图
-        if len(img_np.shape) == 3:
+        # 转换为灰度图（支持 RGBA / RGB / 单通道）
+        if channels == 4:
+            img_cv2 = cv2.cvtColor(img_np, cv2.COLOR_RGBA2GRAY)
+        elif channels == 3:
             img_cv2 = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
         else:
             img_cv2 = img_np
     else:
-        # RGB转BGR（OpenCV使用BGR）
-        if len(img_np.shape) == 3:
+        # RGB 或 RGBA 转 BGR（OpenCV 使用 BGR）
+        if channels == 4:
+            img_cv2 = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
+        elif channels == 3:
             img_cv2 = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
         else:
             img_cv2 = img_np

@@ -8,6 +8,7 @@ import asyncio
 from typing import Callable
 
 from input.input_handler import input_handler
+from input.game_window import request_limbus_process_exit
 from recognize.img_recognizer import recognize_handler
 from recognize.img_registry import get_images_by_tag, get_max_radio_of_ego_gifts
 from workflow.task_node import TaskNode
@@ -414,9 +415,9 @@ def exec_back_to_init_page(self, node: TaskNode, func):
 @TaskExecution.register("error_cannot_operate_the_game")
 def exec_error_cannot_operate_the_game_window(self, node: TaskNode, func):
     logger.info("开始重启 Limbus")
-    # 先尝试关闭现有的Limbus窗口
+    # 关窗 + 请求进程退出，确保下次能通过 Steam 重新启动
     input_handler.close_limbus_window()
-    time.sleep(2)  # 等待窗口完全关闭
+    request_limbus_process_exit()
 
     # 重新打开Limbus窗口
     input_handler.open_limbus()

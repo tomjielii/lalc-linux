@@ -231,33 +231,42 @@ if __name__ == "__main__":
     # 测试所有匹配算法
     print("=== 图像识别测试 ===")
 
-    from ..input.input_handler import GameInput
+    import os
+    from input.input_handler import input_handler
+    from recognize.img_registry import IMG_REGISTRY
 
-    con = GameInput()
+    con = input_handler
     con.refresh_window_state()
     
-    # 检查测试图像是否存在        
-    if not os.path.exists("../template.png"):
-        print("错误: 未找到模板图像 ../template.png")
-        exit(1)
-    
-    # 加载测试图像
+    # 截图
+    os.makedirs("test_output", exist_ok=True)
     try:
-        screenshot = con.capture_screenshot(save_path="test.png")
-        template = Image.open("../template.png")
-        print("已加载测试图像和模板图像")
+        screenshot = con.capture_screenshot(save_path="test_output/recognizer_test.png")
+        print(f"截图成功: {screenshot.size}")
     except Exception as e:
-        print(f"加载图像时出错: {e}")
+        print(f"截图失败: {e}")
         exit(1)
     
-    # 初始化识别器
-    recognizer = ImageRecognizer()
+    # 取第一个已注册模板做匹配测试（跳过 dataset 类）
+    test_template = None
+    for name in IMG_REGISTRY:
+        if not name.startswith("dataset_"):
+            test_template = name
+            break
+    
+    if test_template is None:
+        print("错误: 没有可用的模板")
+        exit(1)
+    
+    print(f"使用模板: {test_template}")
     
     # 测试模板匹配
     print("\n1. 测试模板匹配:")
     try:
-        matches = recognizer.template_match(screenshot, template, visualize=True)
+        matches = recognize_handler.template_match(screenshot, test_template, visualize=False)
         print(f"   找到 {len(matches)} 个匹配")
+        for m in matches[:5]:
+            print(f"     坐标 ({m[0]}, {m[1]}) 置信度 {m[2]:.3f}")
     except Exception as e:
         print(f"   模板匹配出错: {e}")
     

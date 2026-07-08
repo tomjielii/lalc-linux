@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
+# 系统依赖（需通过包管理器安装）：
+#   - xdotool（鼠标/键盘操作）
+#   - imagemagick（窗口截图）
 dependencies = [
     "matplotlib>=3.10.7",
     "numpy>=1.26.4",
@@ -13,7 +16,6 @@ dependencies = [
     "plyer>=2.1.0",
     "psutil>=7.1.3",
     "pynput>=1.8.1",
-    "pywin32>=311",
     "rapidocr>=3.4.3",
     "scipy>=1.15.3",
     "websockets>=15.0.1",

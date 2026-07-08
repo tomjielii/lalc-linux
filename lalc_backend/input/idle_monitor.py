@@ -107,12 +107,68 @@ class IdleMonitor:
 
         self.last_action = ""
 
-# 用法
-def wait_input_idle(idle_time=0.2, test_mode=False):
-    monitor = IdleMonitor(idle_time, test_mode)
-    monitor.start_listening()
+# ===== 全局单例 =====
+# 后台常驻监听，避免每次调用都创建/销毁系统钩子
+
+
+class _BackgroundMonitor:
+    """后台常驻监听器，只保留监听器不跑 monitor_idle，避免反复启停"""
+
+    def __init__(self):
+        self._monitor = IdleMonitor(idle_time=0.2)
+        self._thread = None
+
+    def _listen_only(self):
+        """只启动监听器，不阻塞"""
+        self._monitor.mouse_listener = mouse.Listener(
+            on_move=self._monitor.on_move,
+            on_click=self._monitor.on_click,
+            on_scroll=self._monitor.on_scroll,
+        )
+        self._monitor.keyboard_listener = keyboard.Listener(
+            on_press=self._monitor.on_press,
+            on_release=self._monitor.on_release,
+        )
+        self._monitor.mouse_listener.start()
+        self._monitor.keyboard_listener.start()
+        # 保持线程存活，不运行 monitor_idle
+        self._monitor.mouse_listener.join()
+        self._monitor.keyboard_listener.join()
+
+    def start(self):
+        """在后台线程启动常驻监听器"""
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._thread = Thread(target=self._listen_only, daemon=True)
+        self._thread.start()
+        time.sleep(0.3)  # 等监听器注册完毕
+
+    @property
+    def last_input_time(self):
+        return self._monitor.last_input_time
+
+
+_background_monitor = _BackgroundMonitor()
+
+
+def wait_input_idle(idle_time=0.1, test_mode=False):
+    """
+    等待输入空闲。
+    利用全局单例的后台监听器，只需轮询时间戳，不再重复创建系统钩子。
+    首次调用时会自动启动后台线程。
+    """
+    _background_monitor.start()
+
+    deadline = time.monotonic() + 5  # 安全超时 5s
+    while time.monotonic() < deadline:
+        elapsed = time.time() - _background_monitor.last_input_time
+        if elapsed > idle_time:
+            return
+        time.sleep(0.05)
+
 
 if __name__ == "__main__":
-    
     # 测试，0.4秒空闲后退出
+    print("等待 0.4s 空闲...")
     wait_input_idle(idle_time=0.4, test_mode=True)
+    print("检测到空闲")

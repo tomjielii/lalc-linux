@@ -26,7 +26,7 @@ def register_images_from_directory():
     IMG_REGISTRY.clear()
     TAG_REGISTRY.clear()
 
-    img_dirs = [".\\img", "..\\img"]
+    img_dirs = ["./img", "../img"]
     img_root = None
 
     for img_dir in img_dirs:

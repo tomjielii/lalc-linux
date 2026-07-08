@@ -1,257 +1,154 @@
-import win32gui
-import win32con
+import os
+import signal
+import subprocess
 import time
-import ctypes
-from ctypes import wintypes
-
+import re
 from utils.logger import init_logger
 
 
 logger = init_logger()
 
-# 定义Windows API函数和结构体
-user32 = ctypes.windll.user32
 
-class POINT(ctypes.Structure):
-    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
-
-def get_cursor_pos():
+def is_window(hwnd):
     """
-    使用 ctypes 调用 Windows API 获取鼠标位置（带 1 秒重试）
-    :return: (x, y) 鼠标坐标元组
+    校验窗口 ID 是否有效
+    :param hwnd: X11 window ID
+    :return: True 有效, False 无效
     """
-    while True:
-        try:
-            point = POINT()
-            result = user32.GetCursorPos(ctypes.pointer(point))
-            if not result:          # API 返回 0 也视为失败
-                raise ctypes.WinError()
-            return point.x, point.y
-        except Exception:
-            time.sleep(1)           # 失败则休眠 1 秒后继续
+    r = subprocess.run(["xdotool", "getwindowgeometry", hwnd],
+                       capture_output=True, text=True)
+    return r.returncode == 0
 
 
-def set_background_focus(hwnd)->bool:
+def focus_window(hwnd):
     """
-    将游戏窗口设置为输入焦点（用于后台操作）
-    :param hwnd: 窗口句柄
-    :return 是否显示最小化
+    将窗口切到前台并给予输入焦点
+    :param hwnd: X11 window ID
+    :return: True 成功, False 失败
     """
-    res = False
-    if hwnd:
-        # 如果最小化则显示
-        placement = win32gui.GetWindowPlacement(hwnd)
-        if placement[1] == win32con.SW_SHOWMINIMIZED:
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            time.sleep(0.5)
-            res = True
+    if not is_window(hwnd):
+        return False
 
-        # 设置窗口的输入状态
-        win32gui.EnableWindow(hwnd, True)
+    # 如果窗口被最小化，先恢复显示
+    subprocess.run(["xdotool", "windowmap", hwnd],
+                   capture_output=True, text=True)
+    time.sleep(0.1)
 
-        # 发送激活消息（但不改变Z序）
-        win32gui.SendMessage(hwnd, win32con.WM_ACTIVATE, win32con.WA_ACTIVE, 0)
-
-        # 设置焦点状态
-        win32gui.SendMessage(hwnd, win32con.WM_SETFOCUS, 0, 0)
-
-    return res
+    # 没有前后台概念
+    subprocess.run(["xdotool", "windowfocus", hwnd],
+                   capture_output=True, text=True)
+    time.sleep(0.1)
+    return True
 
 
-def set_foreground_focus(hwnd):
-    """
-    将游戏窗口设置为前台焦点（用于前台操作）
-    除了显示最小化的窗口外，还会将窗口置于前台并设置键盘焦点
-    :param hwnd: 窗口句柄
-    :return 是否显示最小化
-    """
-    res = False
-    if hwnd:
-        # 如果最小化则显示
-        placement = win32gui.GetWindowPlacement(hwnd)
-        if placement[1] == win32con.SW_SHOWMINIMIZED:
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            time.sleep(0.5)
-            res = True
-        
-        # 将窗口置于前台
-        win32gui.SetForegroundWindow(hwnd)
-        
-        # 设置窗口为活动窗口
-        # win32gui.SetActiveWindow(hwnd)
-    return res
+def find_game_window(window_title="LimbusCompany", window_class="steam"):
+    # 第1层：按标题搜
+    result = subprocess.run(
+        ["xdotool", "search", "--name", window_title],
+        capture_output=True, text=True
+    )
+    if not result.stdout.strip():
+        return None
 
+    # 第2层：遍历结果，确认类名包含 "steam"
+    for wid in result.stdout.strip().split("\n"):
+        cls = subprocess.run(
+            ["xdotool", "getwindowclassname", wid],
+            capture_output=True, text=True
+        ).stdout.strip()
+        if window_class in cls:
+            return wid
 
-def find_game_window(window_title="LimbusCompany", window_class="UnityWndClass"):
-    """
-    查找游戏窗口句柄
-    :param window_title: 窗口标题
-    :param window_class: 窗口类名
-    :return: 窗口句柄
-    """
-    hwnd = win32gui.FindWindow(window_class, window_title)
-    if not hwnd:
-        raise Exception(f"未找到窗口（类: {window_class}, 标题: {window_title}）")
-    return hwnd
-
-
-def enum_child_windows(hwnd):
-    """
-    枚举指定窗口的所有子窗口句柄
-    :param hwnd: 父窗口句柄
-    :return: 子窗口句柄列表
-    """
-    if not hwnd or not win32gui.IsWindow(hwnd):
-        return []
-    
-    child_windows = []
-    
-    def enum_callback(child_hwnd, extra_list):
-        extra_list.append(child_hwnd)
-        return True
-    
-    try:
-        win32gui.EnumChildWindows(hwnd, enum_callback, child_windows)
-        return child_windows
-    except Exception as e:
-        raise Exception(f"枚举子窗口失败: {str(e)}")
+    return None  # 两层都没找到，返回 None
 
 
 def set_window_to_top(hwnd, client_width=1280, client_height=720):
     """
-    将窗口客户区调整到屏幕顶部，并设置客户区大小
-    :param hwnd: 窗口句柄
-    :param client_width: 客户区宽度，默认1280
-    :param client_height: 客户区高度，默认720
+    将窗口移动到屏幕左上角并设置指定大小
+    :param hwnd: X11 window ID
+    :param client_width: 窗口宽度, 默认1280
+    :param client_height: 窗口高度, 默认720
     """
-    if not hwnd:
+    if not is_window(hwnd):
         return
-        
-    # 获取窗口的边框和标题栏大小
-    window_rect = win32gui.GetWindowRect(hwnd)
-    client_rect = win32gui.GetClientRect(hwnd)
-    
-    # 计算窗口边框大小
-    border_width = ((window_rect[2] - window_rect[0]) - (client_rect[2] - client_rect[0])) // 2
-    caption_height = (window_rect[3] - window_rect[1]) - (client_rect[3] - client_rect[1]) - border_width
-    
-    # 将窗口移动到屏幕顶部（考虑标题栏高度）
-    win32gui.SetWindowPos(
-        hwnd,
-        win32con.HWND_TOP,
-        -border_width, 
-        -caption_height,
-        client_width + 2 * border_width,
-        client_height + caption_height + border_width,
-        win32con.SWP_SHOWWINDOW
+
+    subprocess.run(
+        ["xdotool", "windowmove", hwnd, "0", "0"],
+        capture_output=True, text=True
+    )
+    subprocess.run(
+        ["xdotool", "windowsize", hwnd, str(client_width), str(client_height)],
+        capture_output=True, text=True
     )
 
 
-def set_window_size(hwnd, width=1302, height=776):
+def set_window_size(hwnd, width=1280, height=720):
     """
     设置窗口大小
-    :param hwnd: 窗口句柄
+    :param hwnd: X11 window ID
     :param width: 窗口宽度
     :param height: 窗口高度
     """
-    if hwnd:
-        # 获取窗口当前的位置
-        rect = win32gui.GetWindowRect(hwnd)
-        x, y = rect[0], rect[1]
-        
-        # 设置窗口位置和大小
-        win32gui.SetWindowPos(
-            hwnd, 
-            win32con.HWND_TOP, 
-            x, y, 
-            width, height, 
-            win32con.SWP_SHOWWINDOW
-        )
+    if not is_window(hwnd):
+        return
+    subprocess.run(
+        ["xdotool", "windowsize", hwnd, str(width), str(height)],
+        capture_output=True, text=True
+    )
 
 
 def set_window_position(hwnd, x, y):
     """
     设置窗口位置
-    :param hwnd: 窗口句柄
+    :param hwnd: X11 window ID
     :param x: 窗口左上角x坐标
     :param y: 窗口左上角y坐标
     """
-    if hwnd:
-        # 获取窗口当前的尺寸
-        rect = win32gui.GetWindowRect(hwnd)
-        width = rect[2] - rect[0]
-        height = rect[3] - rect[1]
-        
-        # 设置窗口位置和大小
-        win32gui.SetWindowPos(
-            hwnd,
-            win32con.HWND_TOP,
-            x, y,
-            width, height,
-            win32con.SWP_SHOWWINDOW
-        )
+    if not is_window(hwnd):
+        return
+    subprocess.run(
+        ["xdotool", "windowmove", hwnd, str(x), str(y)],
+        capture_output=True, text=True
+    )
 
 
 def get_window_size(hwnd):
     """
     获取当前窗口大小
-    :param hwnd: 窗口句柄
-    :return: (width, height) 元组
+    :param hwnd: X11 window ID
+    :return: (width, height) 元组，无效窗口返回 None
     """
-    if hwnd:
-        rect = win32gui.GetWindowRect(hwnd)
-        width = rect[2] - rect[0]
-        height = rect[3] - rect[1]
-        return (width, height)
-    return None
+    if not is_window(hwnd):
+        return None
 
-
-def is_mouse_in_window(hwnd):
-    """
-    判断鼠标是否在窗口内
-    :param hwnd: 窗口句柄
-    :return: bool值，鼠标是否在窗口内
-    """
-    if not hwnd:
-        return False
-    
-    # 获取鼠标当前位置
-    mouse_x, mouse_y = get_cursor_pos()
-    if mouse_x is None or mouse_y is None:
-        return False
-    
-    # 获取窗口位置和大小
-    rect = wintypes.RECT()
-    result = ctypes.windll.user32.GetWindowRect(hwnd, ctypes.pointer(rect))
-    if not result:
-        return False
-    left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
-    
-    # 判断鼠标坐标是否在窗口范围内
-    return left <= mouse_x <= right and top <= mouse_y <= bottom, mouse_x, mouse_y
+    r = subprocess.run(
+        ["xdotool", "getwindowgeometry", hwnd],
+        capture_output=True, text=True
+    )
+    m = re.search(r"Geometry: (\d+)x(\d+)", r.stdout)
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2))
 
 
 def move_mouse_to_top_right_corner(hwnd):
     """
     将鼠标移动到窗口右上角
-    :param hwnd: 窗口句柄
+    :param hwnd: X11 window ID
     """
-    if not hwnd:
+    if not is_window(hwnd):
         return
-    
-    # 获取窗口位置和大小
-    rect = wintypes.RECT()
-    result = ctypes.windll.user32.GetWindowRect(hwnd, ctypes.pointer(rect))
-    if not result:
+
+    w, h = get_window_size(hwnd)
+    if w is None:
         return
-    left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
-    
-    # 计算右上角坐标（稍微向内偏移几个像素，避免边界问题）
-    corner_x = right + 10
-    corner_y = top - 5
-    
-    # 移动鼠标到窗口右上角
-    ctypes.windll.user32.SetCursorPos(corner_x, corner_y)
+
+    corner_x = w + 10
+    corner_y = -5
+    subprocess.run(
+        ["xdotool", "mousemove", "--window", hwnd, str(corner_x), str(corner_y)],
+        capture_output=True, text=True
+    )
 
 
 def close_window(hwnd):
@@ -259,12 +156,71 @@ def close_window(hwnd):
     关闭指定窗口
     :param hwnd: 窗口句柄
     """
-    if hwnd and win32gui.IsWindow(hwnd):
-        # 发送WM_CLOSE消息关闭窗口
-        win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+    if not is_window(hwnd):
+        return False
+
+    subprocess.run(["xdotool", "windowclose", hwnd],
+                   capture_output=True, text=True)
+    return True
 
 
-def close_limbus_window(window_title="LimbusCompany", window_class="UnityWndClass"):
+def request_limbus_process_exit(timeout: float = 20):
+    """
+    请求 LimbusCompany 进程退出。
+    向进程发送 SIGTERM（礼貌的终止请求），然后等待它自行退出。
+    超时后不强制 kill，仅打日志警告。
+    :param timeout: 发送 SIGTERM 后最大等待秒数
+    :return: True 进程已退出, False 超时后进程仍在
+    """
+    patterns = ["LimbusCompany", "LimbusCompany.exe"]
+    found_any = False
+
+    # 先发 SIGTERM 请求退出
+    for pat in patterns:
+        try:
+            r = subprocess.run(
+                ["pgrep", "-f", pat],
+                capture_output=True, text=True, timeout=5
+            )
+            if r.returncode != 0 or not r.stdout.strip():
+                continue
+
+            pids = r.stdout.strip().split()
+            for pid in pids:
+                logger.info(f"请求 LimbusCompany 进程 (PID: {pid}) 退出")
+                os.kill(int(pid), signal.SIGTERM)
+                found_any = True
+        except subprocess.TimeoutExpired:
+            logger.warning(f"查找进程 {pat} 超时")
+        except Exception as e:
+            logger.error(f"请求进程 {pat} 退出时出错: {str(e)}")
+
+    if not found_any:
+        logger.info("未发现 LimbusCompany 进程运行")
+        return True
+
+    # 等待进程退出
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        time.sleep(1)
+        still_alive = False
+        for pat in patterns:
+            r = subprocess.run(
+                ["pgrep", "-f", pat],
+                capture_output=True, text=True, timeout=5
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                still_alive = True
+                break
+        if not still_alive:
+            logger.info("LimbusCompany 进程已退出")
+            return True
+
+    logger.warning(f"发送退出请求后 {timeout}s 进程仍未退出，请手动检查")
+    return False
+
+
+def close_limbus_window(window_title="LimbusCompany", window_class="steam"):
     """
     关闭LimbusCompany游戏窗口
     :param window_title: 窗口标题
@@ -272,33 +228,32 @@ def close_limbus_window(window_title="LimbusCompany", window_class="UnityWndClas
     :return: 是否成功关闭窗口
     """
     try:
-        hwnd = win32gui.FindWindow(window_class, window_title)
-        if hwnd and win32gui.IsWindow(hwnd):
-            logger.info("正在关闭LimbusCompany窗口")
-            # 发送WM_CLOSE消息关闭窗口
-            win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
-            # 等待窗口关闭
-            timeout = 5  # 5秒超时
-            while win32gui.IsWindow(hwnd) and timeout > 0:
-                time.sleep(0.5)
-                timeout -= 0.5
-            
-            if timeout <= 0:
-                logger.warning("关闭LimbusCompany窗口超时")
-                return False
-            else:
+        hwnd = find_game_window(window_title, window_class)
+        if not hwnd:
+            logger.info("未找到LimbusCompany窗口")
+            return True
+
+        logger.info("正在关闭LimbusCompany窗口")
+        close_window(hwnd)
+
+        # 等待窗口关闭
+        timeout = 5
+        while timeout > 0:
+            time.sleep(0.5)
+            timeout -= 0.5
+            if not is_window(hwnd):
                 logger.info("LimbusCompany窗口已关闭")
                 return True
-        else:
-            logger.info("未找到LimbusCompany窗口")
-            return True  # 没有窗口也算"关闭成功"
+
+        logger.warning("关闭LimbusCompany窗口超时")
+        return False
     except Exception as e:
         logger.error(f"关闭LimbusCompany窗口时出错: {str(e)}")
         return False
 
 
 if __name__ == "__main__":
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+
     # 查找游戏窗口
     hwnd = find_game_window()
     
@@ -309,52 +264,5 @@ if __name__ == "__main__":
     print(f"找到游戏窗口，句柄: {hwnd}")
 
     close_limbus_window()
-    
-    # # 测试枚举子窗口
-    # print("测试枚举子窗口...")
-    # child_windows = enum_child_windows(hwnd)
-    # print(f"找到 {len(child_windows)} 个子窗口")
-    # for i, child_hwnd in enumerate(child_windows[:10]):  # 只显示前10个
-    #     try:
-    #         text = win32gui.GetWindowText(child_hwnd)
-    #         class_name = win32gui.GetClassName(child_hwnd)
-    #         print(f"  子窗口 {i}: 句柄={child_hwnd}, 标题='{text}', 类名='{class_name}'")
-    #     except:
-    #         print(f"  子窗口 {i}: 句柄={child_hwnd}")
-    
-    # if len(child_windows) > 10:
-    #     print(f"  ... 还有 {len(child_windows) - 10} 个子窗口")
-    
-    # # 测试获取窗口大小
-    # size = get_window_size(hwnd)
-    # print(f"当前窗口大小: {size}")
-    
-    # # 测试设置窗口大小
-    # if size:
-    #     print("测试设置窗口大小...")
-    #     original_width, original_height = size
-    #     set_window_size(hwnd)
-    #     time.sleep(1)
-        
-    #     new_size = get_window_size(hwnd)
-    #     print(f"新窗口大小: {new_size}")
-    
-    # 测试后台焦点设置
-    # print("测试设置后台焦点...")
-    # set_background_focus(hwnd)
-    # time.sleep(2)  # 等待2秒观察效果
-    
-    # # 测试前台焦点设置
-    # # print("测试设置前台焦点...")
-    # # set_foreground_focus(hwnd)
-    # # time.sleep(2)  # 等待2秒观察效果
-    
-    # print("焦点设置测试完成")
 
-    # whil@Te True:
-    #     if is_mouse_in_window(hwnd):
-    #         print("yes")
-    #         move_mouse_to_top_right_corner(hwnd)
-    #     else:
-    #         print("no")
-    #     time.sleep(0.5)
+    request_limbus_process_exit()
