@@ -16,6 +16,7 @@ from .game_window import (
 from .game_click import get_cursor_pos
 from .game_screenshot import take_screenshot
 from .game_click import mouse_click, mouse_down, mouse_up
+from .game_long_press import mouse_long_press
 from .game_keyboard import key_press
 from .game_swipe import mouse_swipe
 from .idle_monitor import wait_input_idle
@@ -63,6 +64,10 @@ class ActiveInputState(InputState):
     def set_focus(self, hwnd):
         return focus_window(hwnd)
 
+
+# 模板设计参考分辨率（所有模板基于 1280x720 截取）
+REFERENCE_WIDTH = 1280
+REFERENCE_HEIGHT = 720
 
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 720
@@ -156,19 +161,20 @@ class _Input:
     def capture_screenshot(self, reset=True, save_path=None):
         """
         截取游戏窗口屏幕并存储在screenshot属性中。
+        截图保持实际分辨率，但存储前缩放到参考分辨率（1280x720），
+        确保模板匹配坐标在参考空间内。
         """
         if self._hwnd:
             self.refresh_window_state()
-            # 只在当前窗口大小与默认大小不同时才设置窗口大小
-            if (
-                self._width != DEFAULT_WINDOW_WIDTH
-                or self._height != DEFAULT_WINDOW_HEIGHT
-            ):
-                self.set_window_size()
-
-            self._screenshot = take_screenshot(
+            # 截取实际分辨率
+            raw = take_screenshot(
                 self._hwnd, width=self.width, height=self.height, save_path=save_path
             )
+            # 缩放到参考分辨率（模板匹配用）
+            if (self._width, self._height) != (REFERENCE_WIDTH, REFERENCE_HEIGHT):
+                self._screenshot = raw.resize((REFERENCE_WIDTH, REFERENCE_HEIGHT), 1)
+            else:
+                self._screenshot = raw
 
             return self.screenshot
         else:
@@ -176,19 +182,11 @@ class _Input:
 
     def set_window_size(self, width=DEFAULT_WINDOW_WIDTH, height=DEFAULT_WINDOW_HEIGHT):
         """
-        设置窗口尺寸为指定大小。
-        注意：这需要实际调用窗口大小调整函数的实现。
+        方案B：不强制调整窗口大小，仅记录实际分辨率。
+        截图和坐标会自动缩放/映射。
         """
-        # 检查当前窗口大小是否已经等于目标大小
-        if self._width == width and self._height == height:
-            logger.debug(f"窗口大小已经是 {width}x{height}，跳过设置")
-            return
-
-        self._width = width
-        self._height = height
         if self._hwnd:
-            set_window_size(self._hwnd, self._width, self._height)
-            self.refresh_window_state()
+            self._update_window_size()
         else:
             raise Exception("hwnd init Error")
 
@@ -244,18 +242,26 @@ class _Input:
             self._height = 0
         return result
 
+    def _to_actual(self, ref_x: int, ref_y: int) -> tuple[int, int]:
+        """将参考分辨率坐标映射到实际窗口坐标。"""
+        if self._width == REFERENCE_WIDTH and self._height == REFERENCE_HEIGHT:
+            return ref_x, ref_y
+        ax = int(ref_x * self._width / REFERENCE_WIDTH)
+        ay = int(ref_y * self._height / REFERENCE_HEIGHT)
+        return ax, ay
+
     def click(self, x, y):
         if self._stop_flag.is_set():
             return
         self._pause_flag.wait()
         if not self._hwnd:
             raise Exception("hwnd init Error")
-        logger.debug(f"click ({x}, {y})")
+        ax, ay = self._to_actual(x, y)
         wait_input_idle()
         if self._stop_flag.is_set():
             return
         self._pause_flag.wait()
-        return self._state.click(self._hwnd, x, y)
+        return self._state.click(self._hwnd, ax, ay)
 
     def key_press(self, key):
         if self._stop_flag.is_set():
@@ -272,12 +278,13 @@ class _Input:
         self._pause_flag.wait()
         if not self._hwnd:
             raise Exception("hwnd init Error")
+        asx, asy = self._to_actual(start_x, start_y)
+        aex, aey = self._to_actual(end_x, end_y)
         wait_input_idle()
         if self._stop_flag.is_set():
             return
         self._pause_flag.wait()
-        logger.debug(f"swipe ({start_x},{start_y}) → ({end_x},{end_y})")
-        return self._state.swipe(self._hwnd, start_x, start_y, end_x, end_y)
+        return self._state.swipe(self._hwnd, asx, asy, aex, aey)
 
     def long_press(self, x, y, duration=3):
         if self._stop_flag.is_set():
@@ -285,12 +292,13 @@ class _Input:
         self._pause_flag.wait()
         if not self._hwnd:
             raise Exception("hwnd init Error")
-        logger.debug(f"long_press ({x},{y}) {duration}s")
+        ax, ay = self._to_actual(x, y)
+        logger.debug(f"long_press ({ax},{ay}) {duration}s")
         wait_input_idle()
         if self._stop_flag.is_set():
             return
         self._pause_flag.wait()
-        return self._state.long_press(self._hwnd, x, y, duration)
+        return self._state.long_press(self._hwnd, ax, ay, duration)
 
     def set_focus(self) -> bool:
         if not self._hwnd:

@@ -100,7 +100,10 @@
         "recognition":"template_match",
         "action":"click",
         "params":{
-            "template":"main_drive_no_text"
+            "template":"main_drive_no_text",
+            "repeat":3,
+            "repeat_interval":1.0,
+            "post_delay": 0.5
         },
         "next":[
             "game_language_confirm"

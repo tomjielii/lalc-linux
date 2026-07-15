@@ -1,13 +1,12 @@
 import time
 try:
-    from input.input_handler import input_handler
+    from input.input_handler import input_handler, REFERENCE_WIDTH, REFERENCE_HEIGHT
     from recognize.img_recognizer import recognize_handler
-    # from workflow.task_registry import get_task
 except ImportError:
     import sys 
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-    from input.input_handler import input_handler
+    from input.input_handler import input_handler, REFERENCE_WIDTH, REFERENCE_HEIGHT
     from recognize.img_recognizer import recognize_handler
 
     # from task_registry import get_task
@@ -68,17 +67,17 @@ class TaskNode:
         elif self.recognition == "template_match":
             template = self.get_param("template")
             threshold = self.get_param("threshold", 0.85)
-            mask = self.get_param("mask", [0, 0, input_handler.width, input_handler.height])
+            mask = self.get_param("mask", [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT])
             return (template, threshold, mask)
         elif self.recognition == "color_template_match":
             template = self.get_param("template")
             threshold = self.get_param("threshold", 0.7)
-            mask = self.get_param("mask", [0, 0, input_handler.width, input_handler.height])
+            mask = self.get_param("mask", [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT])
             return (template, threshold, mask)
         elif self.recognition == "feature_match":
             template = self.get_param("template")
             threshold = self.get_param("threshold", 0.7)
-            mask = self.get_param("mask", [0, 0, input_handler.width, input_handler.height])
+            mask = self.get_param("mask", [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT])
             return (template, threshold, mask)
         else:
             raise ValueError(f"未知的recognition类型: {self.recognition}")
@@ -118,20 +117,28 @@ class TaskNode:
         return res
     
     def normal_node_get_next(self):
-        tmp_screenshot = input_handler.capture_screenshot()
-        # 按顺序遍历 next 列表
-        for next_task in self.next:
-            if next_task.do_recognize(tmp_screenshot):
-                # 第一个返回 True 的任务节点，立即返回 (do_action, get_next)
-                return (self.name, next_task.do_action, next_task.get_next)
+        max_retry = self.get_param("max_retry", 0)
+        retry_interval = self.get_param("retry_interval", 1.0)
+        for attempt in range(max_retry + 1):
+            if attempt > 0:
+                logger.info(f"{self.name} 全不匹配，{attempt}/{max_retry} 次重试")
+                time.sleep(retry_interval)
+            
+            tmp_screenshot = input_handler.capture_screenshot()
+            # 按顺序遍历 next 列表
+            for next_task in self.next:
+                if next_task.do_recognize(tmp_screenshot):
+                    # 第一个返回 True 的任务节点，立即返回 (do_action, get_next)
+                    return (self.name, next_task.do_action, next_task.get_next)
+            
+            # 如果 next 中没有任何一个成功，遍历自身的 interrupt 列表
+            for interrupt_task in self.interrupt:
+                if interrupt_task.do_recognize(tmp_screenshot):
+                    # 第一个成功的返回 (do_action, get_next, self.get_next)
+                    return (self.name, interrupt_task.do_action, interrupt_task.get_next, self.get_next)
         
-        # 如果 next 中没有任何一个成功，遍历自身的 interrupt 列表
-        for interrupt_task in self.interrupt:
-            if interrupt_task.do_recognize(tmp_screenshot):
-                # 第一个成功的返回 (do_action, get_next, self.get_next)
-                return (self.name, interrupt_task.do_action, interrupt_task.get_next, self.get_next)
-        
-        # 如果还是没有成功，返回 (None, None)
+        # 所有重试都失败，返回 (None, None)
+        logger.warning(f"{self.name} 全不匹配，已重试 {max_retry} 次仍失败")
         return (self.name, None, None)
     
 

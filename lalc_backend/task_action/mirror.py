@@ -241,8 +241,6 @@ def exec_mirror_shop_enhance_ego_gifts(self, node: TaskNode, func):
     enable_enhance = cfg.get("enable_enhance_ego_gifts", True)
     if not enable_enhance:
         logger.info("根据配置跳过EGO饰品升级")
-        # 点击 leave，为离开商店做准备
-        input_handler.click(1120, 670)
         return
 
     input_handler.click(160, 390)
@@ -393,10 +391,12 @@ def exec_mirror_shop_enhance_ego_gifts(self, node: TaskNode, func):
                 detect_places[3] -= 210
         else:
             break
+    
+    # 关闭饰品升级界面，返回商店主界面
     input_handler.click(500, 590)
     time.sleep(1)
-    # 点击 leave，为离开商店做准备
-    input_handler.click(1120, 670)
+    input_handler.click(500, 590)
+    # 让 pipeline 的 mirror_shop_leave 任务通过模板匹配处理 Leave
 
 
 replace_skill_map = {

@@ -101,14 +101,14 @@ def exec_ready_to_battle(self, node: TaskNode, func):
                 input_handler.click(*team_order_map[member])
         
         # 找出未被team_order包含的成员
-        remaining_members = []
-        for member in team_order_map:
-            if member not in team_order:
-                remaining_members.append(member)
+        # remaining_members = []
+        # for member in team_order_map:
+        #     if member not in team_order:
+        #         remaining_members.append(member)
         
         # 按顺序选择未被选中的成员
-        for member in remaining_members:
-            input_handler.click(*team_order_map[member])
+        # for member in remaining_members:
+        #     input_handler.click(*team_order_map[member])
     
     input_handler.click(1140, 590)
     

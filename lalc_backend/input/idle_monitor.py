@@ -1,7 +1,11 @@
 import time
+import logging
 from pynput import mouse, keyboard
 from threading import Thread
 from utils.logger import init_logger
+
+# 抑制 pynput 的根 logger 输出，避免重复日志
+logging.getLogger().setLevel(logging.WARNING)
 
 logger = init_logger()
 
@@ -55,9 +59,6 @@ class IdleMonitor:
     def record_activity(self, activity:str):
         if self.test_mode:
             print(activity)
-        if activity != self.last_action:
-            logger.debug(activity)
-            self.last_action = activity
         self.last_input_time = time.time()
 
     # 检查空闲时间

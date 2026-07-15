@@ -51,11 +51,11 @@ def _safe_broadcast(msg: str) -> None:
     # 获取保存的主循环
     main_loop = getattr(server, "loop", None)
     if main_loop is None:
-        logger.warning("服务器未保存主循环引用")
+        # logger.warning("服务器未保存主循环引用")
         return
 
     if main_loop.is_closed():
-        logger.warning("主事件循环已关闭，无法广播消息")
+        # logger.warning("主事件循环已关闭，无法广播消息")
         return
 
     coro = server.broadcast_task_log(msg)

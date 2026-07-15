@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 import os
 
-from input.input_handler import input_handler
+from input.input_handler import input_handler, REFERENCE_WIDTH, REFERENCE_HEIGHT
 from recognize.template_match import template_match
 from recognize.color_template_match import color_template_match
 # from recognize.easy_ocr import detect_text_in_image, find_text_in_image, img_ocr
@@ -48,7 +48,7 @@ class ImageRecognizer:
         :return: 匹配结果列表，每个元素包含(中心x坐标, 中心y坐标, 匹配分数)
         """
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
         template_name = template 
         template = get_image(template)
         if not mask_template is None:
@@ -60,7 +60,7 @@ class ImageRecognizer:
         for i in tmp:
             res.append((i[0]+mask[0], i[1]+mask[1], i[2]))
         log_pic = None if len(res) == 0 else debug_image[0]
-        logger.debug(f"执行模板匹配，模板 {template_name}, 对目标图片做截取{mask}, 对模板图片做截取{mask_template}, 阈值 {threshold},匹配结果: {res}", log_pic)
+        logger.debug(f"模板 {template_name}, 截取目标图片{mask}, 截取模板图片{mask_template}, 阈值 {threshold},匹配结果: {res}", log_pic)
         return res
     
 
@@ -76,7 +76,7 @@ class ImageRecognizer:
         :return: 匹配结果列表，每个元素包含(中心x坐标, 中心y坐标, 匹配分数)
         """
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
         template_name = template
         template = get_image(template)
         screenshot = mask_screenshot(screenshot, *mask)
@@ -99,7 +99,7 @@ class ImageRecognizer:
         :return: 匹配结果列表，每个元素包含(中心x坐标, 中心y坐标, 匹配分数, 对目标图像缩放倍率)
         """
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
         
         template_name = template
         template = get_image(template)
@@ -123,7 +123,7 @@ class ImageRecognizer:
         :return: 匹配结果列表，每个元素包含(中心x坐标, 中心y坐标, 总和匹配分数, 模板匹配分数，颜色相似度分数)
         """
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
             
         template = get_image(template)
         screenshot = mask_screenshot(screenshot, *mask)
@@ -145,7 +145,7 @@ class ImageRecognizer:
         :return: 匹配结果列表，每个元素包含(中心x坐标, 中心y坐标, 匹配分数)
         """
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
             
         template = get_image(template)
         screenshot = mask_screenshot(screenshot, *mask)
@@ -172,7 +172,7 @@ class ImageRecognizer:
         :return: 匹配结果列表，每个元素包含(中心x坐标, 中心y坐标, 平均亮度分数)
         """
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
             
         screenshot = mask_screenshot(screenshot, *mask)
         tmp = brightness_threshold_match(screenshot, threshold, visualize, grayscale, screenshot_scale,
@@ -192,7 +192,7 @@ class ImageRecognizer:
         :return: 检测到的结果列表，内部元素为元组(文字, 中心横坐标, 中心纵坐标, 置信度)
         """
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
             
         _img = fill_mask_screenshot(screenshot , *mask)
         debug_image = []
@@ -213,7 +213,7 @@ class ImageRecognizer:
         """
         
         if mask is None:
-            mask = [0, 0, input_handler.width, input_handler.height]
+            mask = [0, 0, REFERENCE_WIDTH, REFERENCE_HEIGHT]
         
         detected_texts = self.detect_text_in_image(screenshot, threshold=threshold, visualize=visualize, mask=mask)
         

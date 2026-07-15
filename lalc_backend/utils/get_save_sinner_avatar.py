@@ -62,7 +62,7 @@ def filter_color_by_rgb(image_pil, target_rgb, tolerance=(30, 30, 30)):
     # input("按任意键继续...")
 
     # 转换为numpy数组
-    img_array = np.array(image_pil)
+    img_array = np.array(image_pil.convert("RGB"))
 
     lower_bound = np.array(
         [

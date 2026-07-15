@@ -37,7 +37,7 @@ def exec_click(self, node: TaskNode, func=None):
         )
     input_handler.click(*click_pos)
     repeat = node.get_param("repeat", 1)
-    repeat_interval = max(node.get_param("repeat_interval", 0.2) - 0.5, 0)
+    repeat_interval = max(node.get_param("repeat_interval", 0.1), 0)
     logger.debug(f"执行点击操作: {node.name}, 点了{repeat}次，间隔{repeat_interval}秒")
     for _ in range(repeat-1):
         time.sleep(repeat_interval)
@@ -77,7 +77,7 @@ def exec_swipe(self, node: TaskNode, func=None):
         end[1] + end_offset[1]
     )
     repeat = node.get_param("repeat", 1)
-    repeat_interval = max(node.get_param("repeat_interval", 0.5) - 0.5, 0)
+    repeat_interval = max(node.get_param("repeat_interval", 0.1), 0)
     for _ in range(repeat-1):
         time.sleep(repeat_interval)
         input_handler.swipe(
