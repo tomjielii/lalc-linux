@@ -4,3 +4,4 @@ logs/
 
 AGENTS.md
 test_output/
+.cache

@@ -5,6 +5,9 @@ Global:
     use_cls: false
     use_rec: true
 
+    use_preprocess_img: true
+    use_vertical_padding: true
+
     min_height: 20
     width_height_ratio: 15
     max_side_len: 2000

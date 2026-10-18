@@ -1,10 +1,57 @@
 import subprocess
+import os
+import tempfile
 from io import BytesIO
 import time
 from PIL import Image
 
 from .game_window import is_window, get_window_size
 from .x11_input import take_screenshot_x11
+
+
+# 抓帧后端：x11（默认，XGetImage 读窗口）或 gamescope（gamescopectl 读合成输出）。
+# gamescope 后端用在游戏跑在 gamescope 私有 X 服务器时：XGetImage 在那种环境里
+# 只能读到全黑的窗口备份，必须改从 gamescope 自己的输出取帧。
+CAPTURE_BACKEND = os.environ.get("LALC_CAPTURE", "x11").lower()
+
+
+def _take_screenshot_gamescope(save_path=None):
+    """
+    通过 gamescopectl 抓 gamescope 的合成输出（全输出分辨率，无窗口边框）。
+    不经过 X，不受窗口可见性影响。
+    """
+    fd, tmp = tempfile.mkstemp(suffix=".png", prefix="lalc_gs_")
+    os.close(fd)
+    try:
+        r = subprocess.run(
+            ["gamescopectl", "screenshot", tmp],
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(f"gamescopectl 抓帧失败: {r.stderr.strip() or r.stdout.strip()}")
+
+        # gamescopectl 只是请求，文件由 gamescope 在下一帧写出，需要等它落地
+        img = None
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            try:
+                img = Image.open(tmp)
+                img.load()
+                break
+            except Exception:
+                img = None
+                time.sleep(0.05)
+        if img is None:
+            raise RuntimeError("gamescopectl 写出的截图文件超时未就绪")
+
+        if save_path:
+            img.save(save_path)
+        return img
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 def _get_logical_client_rect(hwnd):
@@ -19,13 +66,17 @@ def _get_logical_client_rect(hwnd):
 def take_screenshot(hwnd, width=None, height=None, save_path=None):
     """
     对游戏窗口进行截图
-    使用 X11 XGetImage 捕获指定窗口，不激活窗口、不移动鼠标。
+    默认使用 X11 XGetImage 捕获指定窗口，不激活窗口、不移动鼠标。
+    设置 LALC_CAPTURE=gamescope 时改用 gamescopectl 抓 gamescope 的输出。
     :param hwnd: X11 window ID
     :param width: 忽略（自动获取）
     :param height: 忽略（自动获取）
     :param save_path: 保存路径（None则不保存）
     :return: PIL.Image对象
     """
+    if CAPTURE_BACKEND == "gamescope":
+        return _take_screenshot_gamescope(save_path)
+
     if not is_window(hwnd):
         raise Exception(f"无效窗口句柄: {hwnd}")
 
