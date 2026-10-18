@@ -475,53 +475,89 @@
   "team_orders": [
     [
       "Heathcliff",
+      "Don Quixote",
       "Rodion",
       "Ryoshu",
       "Faust",
-      "Yi Sang"
+      "Outis",
+      "Yi Sang",
+      "Ishmael",
+      "Meursault",
+      "Gregor",
+      "Hong Lu"
     ],
     [
-      "Heathcliff",
       "Rodion",
-      "Ryoshu",
+      "Heathcliff",
+      "Yi Sang",
+      "Ishmael",
+      "Hong Lu",
+      "Outis",
+      "Gregor",
       "Faust",
-      "Yi Sang"
+      "Ryoshu",
+      "Don Quixote",
+      "Meursault",
+      "Sinclair"
     ],
     [
-      "Heathcliff",
-      "Rodion",
+      "Hong Lu",
       "Ryoshu",
       "Faust",
-      "Yi Sang"
+      "Sinclair",
+      "Heathcliff",
+      "Ishmael",
+      "Rodion",
+      "Yi Sang",
+      "Outis",
+      "Gregor"
     ],
     [
-      "Heathcliff",
+      "Don Quixote",
       "Rodion",
+      "Ishmael",
+      "Yi Sang",
+      "Gregor",
+      "Heathcliff",
+      "Outis",
       "Ryoshu",
-      "Faust",
-      "Yi Sang"
+      "Meursault",
+      "Hong Lu",
+      "Faust"
     ],
     [
-      "Heathcliff",
-      "Rodion",
       "Ryoshu",
+      "Heathcliff",
+      "Hong Lu",
+      "Sinclair",
+      "Meursault",
+      "Don Quixote",
+      "Gregor",
+      "Rodion",
+      "Yi Sang",
       "Faust",
-      "Yi Sang"
+      "Ishmael"
     ],
     [
-      "Heathcliff",
+      "Sinclair",
+      "Meursault",
+      "Yi Sang",
+      "Outis",
+      "Gregor",
+      "Ishmael",
       "Rodion",
-      "Ryoshu",
       "Faust",
-      "Yi Sang"
+      "Don Quixote",
+      "Ryoshu",
+      "Hong Lu"
     ]
   ],
   "team_indexes": [
+    4,
+    5,
+    6,
     1,
-    1,
-    1,
-    1,
-    1,
-    1
+    2,
+    3
   ]
 }
