@@ -160,10 +160,15 @@ class AsyncTaskPipeline:
         """
         for check_name, cfg_name in [("exp_check", "exp_cfg"), ("thread_check", "thread_cfg"), ("mirror_check", "mirror_cfg")]:
             check_task = get_task(check_name)
-            check_task.set_param("target_count", self.shared_params[cfg_name]["check_node_target_count"])
-            if check_task.get_param("target_count") == 0:
+            cnt = self.shared_params[cfg_name]["check_node_target_count"]
+            check_task.set_param("target_count", cnt)
+            if cnt == 0:
                 check_task.get_param("disable_node").enable = False
-            
+            else:
+                # 重新启用入口节点：刷满次数 disable 过的节点要在下一次 start 时恢复，
+                # 否则 disable 一次就永远 disable，再次 start 会被直接跳过
+                check_task.get_param("disable_node").enable = True
+
             check_task.set_param('execute_count', 0)
 
     def add_start_task(self, task_name: str):
