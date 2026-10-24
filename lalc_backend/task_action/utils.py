@@ -131,6 +131,11 @@ def exec_get_enkephalin_module(self, node: TaskNode, func):
 
 @TaskExecution.register("recharge_enkephalin")
 def exec_recharge_enkephalin(self, node: TaskNode, func):
+    cfg = self._get_using_cfg("other_task")
+    if cfg["lunary_purchase_target"] == 0:
+        logger.info("狂气换脑啡肽次数为 0，跳过充值环节")
+        return
+
     logger.info("充值脑啡肽", input_handler.capture_screenshot())
     input_handler.click(630, 230)
     time.sleep(1)
@@ -143,7 +148,6 @@ def exec_recharge_enkephalin(self, node: TaskNode, func):
     else:
         already_purchase_count = int(res[0][0][:index])
 
-    cfg = self._get_using_cfg("other_task")
     while already_purchase_count < cfg["lunary_purchase_target"]:
         input_handler.key_press('enter')
         time.sleep(1)
