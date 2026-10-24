@@ -255,7 +255,13 @@ class AsyncTaskPipeline:
                 cur_task_name, do_action_func, *get_next_funcs = await asyncio.get_event_loop().run_in_executor(
                     None, self.task_execution.execute, pre_task_name, func
                 )
-                
+
+                # end 是流水线终点，执行到它说明本轮任务已全部完成；
+                # 栈里若还有残留任务属于异常状态，直接清栈结束，避免继续执行过期任务
+                if cur_task_name == "end" and self.task_stack:
+                    self.task_stack.clear()
+                    break
+
                 # 压栈规则：先压 get_next_func，再压 do_action_func
                 for next_func in reversed(get_next_funcs):
                     if next_func is not None:
