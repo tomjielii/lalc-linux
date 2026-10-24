@@ -175,6 +175,8 @@ def detect_text_in_image(image: Image.Image, visualize=False, threshold=0.3, mer
         final_merged_items = merged_items
 
     detected_texts = [(text, cx, cy, conf) for text, cx, cy, conf, _ in final_merged_items]
+    # OCR 纠错：短数字文本里的字母/数字混淆（如 60 被识别成 G0）
+    detected_texts = [(_correct_ocr_text(text), cx, cy, conf) for text, cx, cy, conf in detected_texts]
 
     
     vis_img = cv2.cvtColor(image_cv, cv2.COLOR_GRAY2BGR)
@@ -193,6 +195,19 @@ def detect_text_in_image(image: Image.Image, visualize=False, threshold=0.3, mer
         debug_image.append(vis_img)
 
     return detected_texts
+
+
+# OCR 在短数字上常把数字认成字母（60→G0、10→1O 之类），按固定映射纠正
+_OCR_CONFUSION_MAP = {"G": "6", "O": "0", "Z": "2", "S": "5", "B": "8", "I": "1", "l": "1"}
+
+
+def _correct_ocr_text(text: str) -> str:
+    # 只纠已含数字且长度 <= 3 的短文本，全是字母的短串可能是正常单词，不动
+    if len(text) > 3 or not any(c.isdigit() for c in text):
+        return text
+    for old, new in _OCR_CONFUSION_MAP.items():
+        text = text.replace(old, new)
+    return text
 
 
 def find_text_in_image(pil_image, target_text, visualize=False, threshold=0.5):
