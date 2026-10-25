@@ -67,7 +67,7 @@
         "action":"key",
         "params":{
             "key":"enter",
-            "post_delay": 2
+            "post_delay": 5
         },
         "next":[
             "mirror_choose_team",

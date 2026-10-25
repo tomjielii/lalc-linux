@@ -871,90 +871,162 @@ def exec_mirror_select_next_node(self, node: TaskNode, func):
     mirror_cfg = self._get_using_cfg("mirror")
     node_scores = mirror_cfg.get("node_scores", default_node_scores)
     node_scores["node_empty"] = -100
-    tmp_screenshot = input_handler.capture_screenshot()
     logger.info("选择下一个镜牢节点")
-    train_head = recognize_handler.template_match(tmp_screenshot, "train_head")
-    if len(train_head) > 0 and train_head[0][1] < 300:
-        input_handler.swipe(460, 270, 460, 340)
-        tmp_screenshot = input_handler.capture_screenshot()
-
-    node_pics = get_and_save_mirror_path_node(save=False)
-    path_pics = get_and_save_mirror_path()
-
     next_node_exist = False
-    if node_pics and path_pics:
-        node_type = classify_mirror_legend(node_pics)
-        link_lines = classify_mirror_path(path_pics)[0]["connection_names"]
-
-        # 每条路径(0,1,2)记录一个最大 weight
-        best_per_path = {
-            0: {"weight": -float("inf"), "line": None},
-            1: {"weight": -float("inf"), "line": None},
-            2: {"weight": -float("inf"), "line": None},
-        }
-
-        for line in link_lines:
-            path_id = int(line[0])  # 0 / 1 / 2
-
-            cur_weight = 0
-            for i, c in enumerate(line):
-                cur_weight += node_scores[node_type[i * 3 + int(c)]]
-
-            # 更新该路径下的最大值
-            if cur_weight > best_per_path[path_id]["weight"]:
-                best_per_path[path_id]["weight"] = cur_weight
-                best_per_path[path_id]["line"] = line
-
-        # 按 weight 从高到低排序
-        sorted_paths = sorted(
-            best_per_path.items(),
-            key=lambda x: x[1]["weight"],
-            reverse=True,
-        )
-
-        # 结果示例输出
-        # for path_id, info in sorted_paths:
-        #     print(f"路径 {path_id}: weight={info['weight']}, line={info['line']}")
-        logger.info(
-            f"ai 识别镜像迷宫路径，寻路结果：{sorted_paths}；节点识别:{node_type}；连接识别:{link_lines}",
-            tmp_screenshot,
-        )
-        three_places = [(710, 110), (710, 330), (710, 540)]
-        for path in sorted_paths:
-            if node_type[path[0]] == "node_empty":
-                logger.debug(f"检测到从上往下第 {path[0] + 1} 条路径为空，跳过")
-                continue
-            input_handler.click(*three_places[path[0]])
-            self.exec_wait_disappear(get_task("wait_connecting_disappear"))
+    # 战斗结算/滑动后地图有淡入动画，节点识别可能采到全空帧；
+    # 等地图稳定再重试，连续 3 次都进不了节点才重启镜牢
+    for attempt in range(3):
+        tmp_screenshot = input_handler.capture_screenshot()
+        train_head = recognize_handler.template_match(tmp_screenshot, "train_head")
+        if len(train_head) > 0 and train_head[0][1] < 300:
+            # 单次 70px 复位即可：game_swipe 会先把真实指针移到起点，
+            # 起按瞬间的指针跳变不会再被算进拖拽向量。分段滑动只会更慢。
+            input_handler.swipe(460, 270, 460, 340)
             time.sleep(1)
-            if (
-                len(
-                    recognize_handler.template_match(
-                        input_handler.capture_screenshot(), "node_enter"
-                    )
-                )
-                > 0
-            ):
-                input_handler.key_press("enter")
-                next_node_exist = True
-                break
-
-    train_head = recognize_handler.template_match(tmp_screenshot, "train_head")
-    if not next_node_exist and len(train_head) > 0:
-        # 自身点
-        input_handler.click(train_head[0][0], train_head[0][1])
-
-        time.sleep(1)
-        if (
-            len(
-                recognize_handler.template_match(
-                    input_handler.capture_screenshot(), "node_enter"
-                )
+            tmp_screenshot = input_handler.capture_screenshot()
+            # 记录滑动效果，用于定位偶发的视野甩飞问题
+            logger.debug(
+                "复位滑动后列车头位置：%s",
+                recognize_handler.template_match(tmp_screenshot, "train_head"),
             )
-            > 0
-        ):
-            input_handler.key_press("enter")
-            next_node_exist = True
+
+        node_pics = get_and_save_mirror_path_node(save=False)
+        path_pics = get_and_save_mirror_path()
+
+        if node_pics and path_pics:
+            node_type = classify_mirror_legend(node_pics)
+            link_lines = classify_mirror_path(path_pics)[0]["connection_names"]
+
+            # 每条路径(0,1,2)记录一个最大 weight
+            best_per_path = {
+                0: {"weight": -float("inf"), "line": None},
+                1: {"weight": -float("inf"), "line": None},
+                2: {"weight": -float("inf"), "line": None},
+            }
+
+            for line in link_lines:
+                if not line:
+                    continue
+                path_id = int(line[0])  # 0 / 1 / 2
+                if path_id not in best_per_path:
+                    continue
+
+                cur_weight = 0
+                for i, c in enumerate(line):
+                    idx = i * 3 + int(c)
+                    if idx >= len(node_type):
+                        logger.warning(
+                            f"路径 {line} 的节点索引 {idx} 超出识别结果范围，跳过"
+                        )
+                        cur_weight = None
+                        break
+                    cur_weight += node_scores.get(node_type[idx], 0)
+                if cur_weight is None:
+                    continue
+
+                # 更新该路径下的最大值
+                if cur_weight > best_per_path[path_id]["weight"]:
+                    best_per_path[path_id]["weight"] = cur_weight
+                    best_per_path[path_id]["line"] = line
+
+            # 按 weight 从高到低排序
+            sorted_paths = sorted(
+                best_per_path.items(),
+                key=lambda x: x[1]["weight"],
+                reverse=True,
+            )
+
+            # 结果示例输出
+            # for path_id, info in sorted_paths:
+            #     print(f"路径 {path_id}: weight={info['weight']} line={info['line']}")
+            logger.info(
+                f"ai 识别镜像迷宫路径，寻路结果：{sorted_paths}；节点识别:{node_type}；连接识别:{link_lines}",
+                tmp_screenshot,
+            )
+            three_places = [(710, 110), (710, 330), (710, 540)]
+            for path in sorted_paths:
+                if path[0] >= len(node_type):
+                    continue
+                if node_type[path[0]] == "node_empty":
+                    logger.debug(f"检测到从上往下第 {path[0] + 1} 条路径为空，跳过")
+                    continue
+                input_handler.click(*three_places[path[0]])
+                self.exec_wait_disappear(get_task("wait_connecting_disappear"))
+                time.sleep(1)
+                if (
+                    len(
+                        recognize_handler.template_match(
+                            input_handler.capture_screenshot(), "node_enter"
+                        )
+                    )
+                    > 0
+                ):
+                    input_handler.key_press("enter")
+                    next_node_exist = True
+                    break
+
+        current_screenshot = tmp_screenshot
+        if not next_node_exist:
+            # 点击路径后画面可能已经变化，重新截图再判断自身节点
+            current_screenshot = input_handler.capture_screenshot()
+            train_head = recognize_handler.template_match(
+                current_screenshot, "train_head"
+            )
+            if len(train_head) > 0:
+                # 自身点
+                input_handler.click(train_head[0][0], train_head[0][1])
+
+                time.sleep(1)
+                if (
+                    len(
+                        recognize_handler.template_match(
+                            input_handler.capture_screenshot(), "node_enter"
+                        )
+                    )
+                    > 0
+                ):
+                    input_handler.key_press("enter")
+                    next_node_exist = True
+
+        if next_node_exist:
+            break
+        if attempt < 2:
+            logger.warning(
+                f"本轮未识别到可进入的节点（第 {attempt + 1}/3 次），等待后重试",
+                current_screenshot,
+            )
+            # 先等淡入/过场结束。只有确认仍在节点选择界面、且连续空图时，
+            # 才做少量反向复位；不要一丢 train_head 就大幅拖拽，避免把正常视野拖走。
+            time.sleep(1.5)
+            stable_screenshot = input_handler.capture_screenshot()
+            stable_train_head = recognize_handler.template_match(
+                stable_screenshot, "train_head"
+            )
+            if (
+                len(stable_train_head) == 0
+                and recognize_handler.template_match(stable_screenshot, "legend")
+                and not recognize_handler.template_match(
+                    stable_screenshot, "node_enter"
+                )
+            ):
+                recovered = False
+                for _ in range(2):
+                    input_handler.swipe(460, 350, 460, 150)
+                    time.sleep(1)
+                    if (
+                        len(
+                            recognize_handler.template_match(
+                                input_handler.capture_screenshot(), "train_head"
+                            )
+                        )
+                        > 0
+                    ):
+                        logger.info("反向复位后重新找到列车头")
+                        recovered = True
+                        break
+                if not recovered:
+                    logger.warning("反向复位后仍未找到列车头，准备重启镜牢")
+            time.sleep(1)
 
     if not next_node_exist:
         # 那么估计是当前的位置因为各种偏移不对

@@ -6,6 +6,18 @@ from .game_click import mouse_down, mouse_up
 from .game_window import is_window
 
 
+def _move_pointer(hwnd, x, y):
+    """用 xdotool 移动真实指针；失败时抛异常，避免拖拽路径悄悄错位。"""
+    r = subprocess.run(
+        ["xdotool", "mousemove", "--window", hwnd, str(int(x)), str(int(y))],
+        capture_output=True, text=True, timeout=5,
+    )
+    if r.returncode != 0:
+        raise RuntimeError(
+            f"xdotool mousemove 失败: {r.stderr.strip() or r.stdout.strip()}"
+        )
+
+
 def mouse_swipe(hwnd, start_x, start_y, end_x, end_y, speed=1):
     """
     鼠标拖拽：从起点坐标滑动到终点坐标
@@ -33,6 +45,11 @@ def mouse_swipe(hwnd, start_x, start_y, end_x, end_y, speed=1):
         delta_x = (ex - sx) / steps
         delta_y = (ey - sy) / steps
 
+        # 先把真实指针移到起点再按下：XSendEvent 点击不动真实指针，
+        # 残留的旧位置 + 起按瞬间的跳变会被游戏算进拖拽向量，导致滚动过量
+        _move_pointer(hwnd, sx, sy)
+        time.sleep(0.05)
+
         # 移动到起点并按下
         mouse_down(hwnd, sx, sy)
         time.sleep(0.05 + random.random() * 0.05)
@@ -41,10 +58,7 @@ def mouse_swipe(hwnd, start_x, start_y, end_x, end_y, speed=1):
         for i in range(steps + 1):
             cx = int(sx + delta_x * i)
             cy = int(sy + delta_y * i)
-            subprocess.run(
-                ["xdotool", "mousemove", "--window", hwnd, str(cx), str(cy)],
-                capture_output=True, text=True, timeout=5
-            )
+            _move_pointer(hwnd, cx, cy)
             time.sleep(sleep_time)
 
         time.sleep(0.3)
