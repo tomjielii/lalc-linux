@@ -5,3 +5,4 @@ logs/
 AGENTS.md
 test_output/
 .cache
+lalc_backend/dataset/

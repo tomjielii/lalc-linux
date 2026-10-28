@@ -885,10 +885,8 @@ def exec_mirror_select_next_node(self, node: TaskNode, func):
             time.sleep(1)
             tmp_screenshot = input_handler.capture_screenshot()
             # 记录滑动效果，用于定位偶发的视野甩飞问题
-            logger.debug(
-                "复位滑动后列车头位置：%s",
-                recognize_handler.template_match(tmp_screenshot, "train_head"),
-            )
+            reset_head = recognize_handler.template_match(tmp_screenshot, "train_head")
+            logger.debug(f"复位滑动后列车头位置：{reset_head}")
 
         node_pics = get_and_save_mirror_path_node(save=False)
         path_pics = get_and_save_mirror_path()
